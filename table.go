@@ -1,4 +1,4 @@
-// sqldb is a Go package help create tables from Go structures.
+// Package sqldb helps create tables from Go structures.
 //
 // Field tag format: `db:"key[:value] key[:value]..."`
 // Keys:
