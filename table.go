@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 type Column struct {
@@ -30,11 +32,12 @@ type Table struct {
 }
 
 type Config struct {
-	DBDialect  DBDialect
-	FieldTag   string
-	Default    bool
-	Notnull    bool
-	NameMapper NameMapper
+	DBDialect       DBDialect
+	FieldTag        string
+	Default         bool
+	Notnull         bool
+	TablenamePrefix string
+	NameMapper      NameMapper
 }
 
 func (c *Config) initDefault() {
@@ -45,7 +48,7 @@ func (c *Config) initDefault() {
 		c.FieldTag = "db"
 	}
 	if c.NameMapper == nil {
-		c.NameMapper = strings.ToLower
+		c.NameMapper = SnakeCase
 	}
 }
 
@@ -236,7 +239,7 @@ func (c *Config) StructTable(v interface{}) (Table, error) {
 	reft := refv.Type()
 
 	t := Table{
-		Name: c.NameMapper(reft.Name()),
+		Name: c.TablenamePrefix + c.NameMapper(reft.Name()),
 	}
 	n := reft.NumField()
 	for i := 0; i < n; i++ {
@@ -250,4 +253,42 @@ func (c *Config) StructTable(v interface{}) (Table, error) {
 		}
 	}
 	return t, nil
+}
+
+func SnakeCase(s string) string {
+	var (
+		hasUpper  bool
+		size      = utf8.RuneCountInString(s)
+		prevUpper bool
+	)
+	for i, r := range s {
+		if unicode.IsUpper(r) {
+			hasUpper = true
+			if i != 0 && !prevUpper {
+				size++
+			}
+			prevUpper = true
+		} else {
+			prevUpper = false
+		}
+	}
+	if !hasUpper {
+		return s
+	}
+	var (
+		buf = make([]rune, 0, size)
+	)
+	prevUpper = false
+	for i, r := range s {
+		isUpper := unicode.IsUpper(r)
+		if isUpper && i != 0 && !prevUpper {
+			buf = append(buf, '_')
+		}
+		if prevUpper = isUpper; isUpper {
+			buf = append(buf, unicode.ToLower(r))
+		} else {
+			buf = append(buf, r)
+		}
+	}
+	return string(buf)
 }
