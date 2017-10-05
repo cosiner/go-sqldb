@@ -1,6 +1,6 @@
 // Package sqldb helps create tables from Go structures.
 //
-// Field tag format: `db:"key[:value] key[:value]..."`. Available keys:
+// Field tag format: `sqldb:"key[:value] key[:value]..."`. Available keys:
 //   table: table name
 //   col: column name, col:- to skip.
 //   type: char, text and Go builtin types: string/bool/int/uint/int8...

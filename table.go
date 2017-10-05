@@ -45,7 +45,7 @@ func (c *Config) initDefault() {
 		c.DBDialect = Postgres{}
 	}
 	if c.FieldTag == "" {
-		c.FieldTag = "db"
+		c.FieldTag = "sqldb"
 	}
 	if c.NameMapper == nil {
 		c.NameMapper = SnakeCase
