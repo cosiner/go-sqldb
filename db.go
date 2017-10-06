@@ -9,16 +9,16 @@ import (
 )
 
 type DBConfig struct {
-	Type        string
-	Host        string
-	Port        int
-	DBName      string
-	User        string
-	Password    string
-	MaxIdle     int
-	MaxOpen     int
-	MaxLifetime int
-	Options     map[string]string
+	Type        string            `json:"type" yaml:"type" toml:"type"`
+	Host        string            `json:"host" yaml:"host" toml:"host"`
+	Port        int               `json:"port" yaml:"port" toml:"port"`
+	DBName      string            `json:"dbname" yaml:"dbname" toml:"dbname"`
+	User        string            `json:"user" yaml:"user" toml:"user"`
+	Password    string            `json:"password" yaml:"password" toml:"password"`
+	MaxIdle     int               `json:"maxIdle" yaml:"maxIdle" toml:"maxIdle"`
+	MaxOpen     int               `json:"maxOpen" yaml:"maxOpen" toml:"maxOpen"`
+	MaxLifetime int               `json:"maxLifetime" yaml:"maxLifetime" toml:"maxLifetime"`
+	Options     map[string]string `json:"options" yaml:"options" toml:"options"`
 }
 
 func (d *DBConfig) JoinOptions(kvSep, optSep string) string {
