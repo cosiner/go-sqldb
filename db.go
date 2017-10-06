@@ -1,6 +1,9 @@
 package sqldb
 
-import "fmt"
+import (
+	"fmt"
+	"io"
+)
 
 type NameMapper func(string) string
 
@@ -68,4 +71,30 @@ func (Postgres) Type(typ, precision, val string) (dbtyp, defval string, err erro
 	default:
 		return "", "", fmt.Errorf("postgres: unsupported type: %s", typ)
 	}
+}
+
+type Tx interface {
+	Commit() error
+	Rollback() error
+}
+
+func TxDone(tx Tx, err *error) error {
+	var e error
+	if err != nil && *err != nil {
+		e = tx.Rollback()
+	} else {
+		e = tx.Commit()
+	}
+	return e
+}
+
+type TxCloser interface {
+	Tx
+	io.Closer
+}
+
+func TxDoneClose(tx TxCloser, err *error) error {
+	e := TxDone(tx, err)
+	tx.Close()
+	return e
 }
