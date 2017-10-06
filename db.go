@@ -33,6 +33,44 @@ func (d *DBConfig) JoinOptions(kvSep, optSep string) string {
 	}
 	return buf.String()
 }
+func (d *DBConfig) ApplyDefault(def DBConfig) {
+	if d.Type == "" && def.Type != "" {
+		d.Type = def.Type
+	}
+	if d.Host == "" && def.Host != "" {
+		d.Host = def.Host
+	}
+	if d.Port == 0 && def.Port != 0 {
+		d.Port = def.Port
+	}
+	if d.DBName == "" && def.DBName != "" {
+		d.DBName = def.DBName
+	}
+	if d.User == "" && def.User != "" {
+		d.User = def.User
+	}
+	if d.Password == "" && def.Password != "" {
+		d.Password = def.Password
+	}
+	if d.MaxIdle == 0 && def.MaxIdle != 0 {
+		d.MaxIdle = def.MaxIdle
+	}
+	if d.MaxOpen == 0 && def.MaxOpen != 0 {
+		d.MaxOpen = def.MaxOpen
+	}
+	if d.MaxLifetime == 0 && def.MaxLifetime != 0 {
+		d.MaxLifetime = def.MaxLifetime
+	}
+	for k, v := range def.Options {
+		_, has := d.Options[k]
+		if !has {
+			if d.Options == nil {
+				d.Options = make(map[string]string)
+			}
+			d.Options[k] = v
+		}
+	}
+}
 
 type NameMapper func(string) string
 
