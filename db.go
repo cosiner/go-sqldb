@@ -1,14 +1,39 @@
 package sqldb
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 )
+
+type DBConfig struct {
+	Type     string
+	Host     string
+	Port     int
+	DBName   string
+	User     string
+	Password string
+	Options  map[string]string
+}
+
+func (d *DBConfig) JoinOptions(kvSep, optSep string) string {
+	var buf bytes.Buffer
+	for k, v := range d.Options {
+		if buf.Len() > 0 {
+			buf.WriteString(optSep)
+		}
+		buf.WriteString(k)
+		buf.WriteString(kvSep)
+		buf.WriteString(v)
+	}
+	return buf.String()
+}
 
 type NameMapper func(string) string
 
 type DBDialect interface {
 	Type(typ, precision, val string) (dbtyp, defaultVal string, err error)
+	DSN(config DBConfig) string
 }
 
 func defaultVal(def, val string, quote bool) string {
@@ -71,6 +96,30 @@ func (Postgres) Type(typ, precision, val string) (dbtyp, defval string, err erro
 	default:
 		return "", "", fmt.Errorf("postgres: unsupported type: %s", typ)
 	}
+}
+
+func (Postgres) DSN(config DBConfig) string {
+	if config.Host == "" {
+		config.Host = "localhost"
+	}
+	if config.Port == 0 {
+		config.Port = 5432
+	}
+	userPass := config.User
+	if userPass != "" {
+		if config.Password != "" {
+			userPass += ":" + config.Password
+		}
+		userPass += "@"
+	}
+	return fmt.Sprintf(
+		"postgres://%s%s:%d/%s?%s",
+		userPass,
+		config.Host,
+		config.Port,
+		config.DBName,
+		config.JoinOptions("=", "&"),
+	)
 }
 
 type Tx interface {

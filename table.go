@@ -31,7 +31,7 @@ type Table struct {
 	Cols []Column
 }
 
-type Config struct {
+type Parser struct {
 	DBDialect       DBDialect
 	FieldTag        string
 	Default         bool
@@ -40,25 +40,25 @@ type Config struct {
 	NameMapper      NameMapper
 }
 
-func (c *Config) initDefault() {
-	if c.DBDialect == nil {
-		c.DBDialect = Postgres{}
+func (p *Parser) initDefault() {
+	if p.DBDialect == nil {
+		p.DBDialect = Postgres{}
 	}
-	if c.FieldTag == "" {
-		c.FieldTag = "sqldb"
+	if p.FieldTag == "" {
+		p.FieldTag = "sqldb"
 	}
-	if c.NameMapper == nil {
-		c.NameMapper = SnakeCase
+	if p.NameMapper == nil {
+		p.NameMapper = SnakeCase
 	}
 }
 
-func (c *Config) CreateTables(db *sql.DB, models ...interface{}) error {
+func (p *Parser) CreateTables(db *sql.DB, models ...interface{}) error {
 	for _, mod := range models {
-		table, err := c.StructTable(mod)
+		table, err := p.StructTable(mod)
 		if err != nil {
 			return err
 		}
-		s, err := c.SQLCreate(table)
+		s, err := p.SQLCreate(table)
 		if err != nil {
 			return fmt.Errorf("%s: %s", table.Name, err.Error())
 		}
@@ -70,7 +70,7 @@ func (c *Config) CreateTables(db *sql.DB, models ...interface{}) error {
 	return nil
 }
 
-func (c *Config) SQLCreate(table Table) (string, error) {
+func (p *Parser) SQLCreate(table Table) (string, error) {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "CREATE TABLE IF NOT EXISTS %s (\n", table.Name)
 	var (
@@ -80,7 +80,7 @@ func (c *Config) SQLCreate(table Table) (string, error) {
 		lastQuite string
 	)
 	for i, col := range table.Cols {
-		dbTyp, defaultVal, err := c.DBDialect.Type(col.Type, col.Precision, col.DefaultVal)
+		dbTyp, defaultVal, err := p.DBDialect.Type(col.Type, col.Precision, col.DefaultVal)
 		if err != nil {
 			return "", err
 		}
@@ -146,16 +146,16 @@ func (c *Config) SQLCreate(table Table) (string, error) {
 	return buf.String(), nil
 }
 
-func (c *Config) parseColumn(t *Table, f *reflect.StructField) (Column, error) {
+func (p *Parser) parseColumn(t *Table, f *reflect.StructField) (Column, error) {
 	col := Column{
-		Name:    c.NameMapper(f.Name),
+		Name:    p.NameMapper(f.Name),
 		Type:    f.Type.Kind().String(),
-		Default: c.Default,
-		Notnull: !c.Notnull,
+		Default: p.Default,
+		Notnull: !p.Notnull,
 	}
 
 	var conds []string
-	tag := strings.TrimSpace(f.Tag.Get(c.FieldTag))
+	tag := strings.TrimSpace(f.Tag.Get(p.FieldTag))
 	if tag != "" {
 		conds = strings.Split(tag, " ")
 	}
@@ -206,7 +206,7 @@ func (c *Config) parseColumn(t *Table, f *reflect.StructField) (Column, error) {
 			col.Notnull = condVal == "" || condVal == "true"
 		case "default":
 			col.Default = condVal != "-"
-			if c.Default {
+			if p.Default {
 				col.DefaultVal = condVal
 			}
 		case "unique":
@@ -226,8 +226,8 @@ func (c *Config) parseColumn(t *Table, f *reflect.StructField) (Column, error) {
 	return col, nil
 }
 
-func (c *Config) StructTable(v interface{}) (Table, error) {
-	c.initDefault()
+func (p *Parser) StructTable(v interface{}) (Table, error) {
+	p.initDefault()
 
 	refv := reflect.ValueOf(v)
 	if refv.Kind() == reflect.Ptr {
@@ -239,12 +239,12 @@ func (c *Config) StructTable(v interface{}) (Table, error) {
 	reft := refv.Type()
 
 	t := Table{
-		Name: c.TablenamePrefix + c.NameMapper(reft.Name()),
+		Name: p.TablenamePrefix + p.NameMapper(reft.Name()),
 	}
 	n := reft.NumField()
 	for i := 0; i < n; i++ {
 		f := reft.Field(i)
-		col, err := c.parseColumn(&t, &f)
+		col, err := p.parseColumn(&t, &f)
 		if err != nil {
 			return t, err
 		}

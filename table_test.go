@@ -6,7 +6,7 @@ import (
 )
 
 func TestSQLCreate(t *testing.T) {
-	cfg := Config{
+	cfg := Parser{
 		Default:         true,
 		Notnull:         true,
 		TablenamePrefix: "sqldb_",
