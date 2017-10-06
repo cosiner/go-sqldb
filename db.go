@@ -2,18 +2,23 @@ package sqldb
 
 import (
 	"bytes"
+	"database/sql"
 	"fmt"
 	"io"
+	"time"
 )
 
 type DBConfig struct {
-	Type     string
-	Host     string
-	Port     int
-	DBName   string
-	User     string
-	Password string
-	Options  map[string]string
+	Type        string
+	Host        string
+	Port        int
+	DBName      string
+	User        string
+	Password    string
+	MaxIdle     int
+	MaxOpen     int
+	MaxLifetime int
+	Options     map[string]string
 }
 
 func (d *DBConfig) JoinOptions(kvSep, optSep string) string {
@@ -34,6 +39,23 @@ type NameMapper func(string) string
 type DBDialect interface {
 	Type(typ, precision, val string) (dbtyp, defaultVal string, err error)
 	DSN(config DBConfig) string
+}
+
+func Open(dialect DBDialect, config DBConfig) (*sql.DB, error) {
+	db, err := sql.Open(config.Type, dialect.DSN(config))
+	if err != nil {
+		return nil, err
+	}
+	if config.MaxIdle > 0 {
+		db.SetMaxIdleConns(config.MaxIdle)
+	}
+	if config.MaxOpen > 0 {
+		db.SetMaxOpenConns(config.MaxOpen)
+	}
+	if config.MaxLifetime > 0 {
+		db.SetConnMaxLifetime(time.Duration(config.MaxLifetime) * time.Second)
+	}
+	return db, nil
 }
 
 func defaultVal(def, val string, quote bool) string {
