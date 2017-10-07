@@ -4,9 +4,9 @@ import "database/sql"
 
 func ErrOnNoRows(err, newErr error) error {
 	if err == sql.ErrNoRows {
-		return nil
+		return newErr
 	}
-	return newErr
+	return err
 }
 
 func ErrAllowNoRows(err error) error {
@@ -17,7 +17,7 @@ func ErrOnNoAffects(n int64, err, newErr error) error {
 	if n == 0 && err == nil {
 		return newErr
 	}
-	return nil
+	return err
 }
 
 func ErrOnNoAffectsResult(res sql.Result, err, newErr error) error {
@@ -25,8 +25,5 @@ func ErrOnNoAffectsResult(res sql.Result, err, newErr error) error {
 	if err == nil {
 		n, err = res.RowsAffected()
 	}
-	if n == 0 && err == nil {
-		return newErr
-	}
-	return nil
+	return ErrOnNoAffects(n, err, newErr)
 }
