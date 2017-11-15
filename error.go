@@ -21,9 +21,6 @@ func ErrOnNoAffects(n int64, err, newErr error) error {
 }
 
 func ErrOnNoAffectsResult(res sql.Result, err, newErr error) error {
-	var n int64
-	if err == nil {
-		n, err = res.RowsAffected()
-	}
+	n, err := ResultRowsAffected(res, err)
 	return ErrOnNoAffects(n, err, newErr)
 }
