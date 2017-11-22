@@ -47,7 +47,7 @@ func (p Postgres) Type(typ, precision, val string) (dbtyp, defval string, err er
 		return "BIGINT", p.defaultVal("0", val, false), nil
 	case "uint64":
 		return "BIGINT", p.defaultVal("0", val, false), nil
-	case "float32", "float64":
+	case "float32", "float64", "float":
 		if precision != "" {
 			typ = fmt.Sprintf("NUMERIC(%s)", precision)
 		} else if typ == "float32" {
@@ -134,7 +134,8 @@ func (s SQLite3) Type(typ, precision, val string) (dbtyp, defval string, err err
 		"uint64":
 		return "INTEGER", s.defaultVal("0", val, false), nil
 	case "float32",
-		"float64":
+		"float64",
+		"float":
 		return "FLOAT", s.defaultVal("0", val, false), nil
 	case "string",
 		"text",
