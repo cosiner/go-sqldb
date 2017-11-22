@@ -141,6 +141,6 @@ func (s SQLite3) Type(typ, precision, val string) (dbtyp, defval string, err err
 		"char":
 		return "TEXT", s.defaultVal("", val, true), nil
 	default:
-		return "", "", fmt.Errorf("postgres: unsupported type: %s", typ)
+		return "", "", fmt.Errorf("sqlite3: unsupported type: %s", typ)
 	}
 }
