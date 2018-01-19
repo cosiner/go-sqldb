@@ -70,9 +70,13 @@ func (p *Parser) CreateTables(db *sql.DB, models ...interface{}) error {
 	return nil
 }
 
+func (p *Parser) EscapeName(name string) string {
+	return `"` + name + `"`
+}
+
 func (p *Parser) SQLCreate(table Table) (string, error) {
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "CREATE TABLE IF NOT EXISTS %s (\n", table.Name)
+	fmt.Fprintf(&buf, "CREATE TABLE IF NOT EXISTS %s (\n", p.EscapeName(table.Name))
 	var (
 		uniques   map[string][]string
 		primaries []string
@@ -85,7 +89,7 @@ func (p *Parser) SQLCreate(table Table) (string, error) {
 			return "", err
 		}
 		if col.Primary {
-			primaries = append(primaries, col.Name)
+			primaries = append(primaries, p.EscapeName(col.Name))
 		}
 		if col.ForeignTable != "" {
 			foreigns = append(foreigns, i)
@@ -101,7 +105,7 @@ func (p *Parser) SQLCreate(table Table) (string, error) {
 				if uniques == nil {
 					uniques = make(map[string][]string)
 				}
-				uniques[col.UniqueName] = append(uniques[col.UniqueName], col.Name)
+				uniques[col.UniqueName] = append(uniques[col.UniqueName], p.EscapeName(col.Name))
 			}
 		}
 		if col.AutoIncr {
@@ -117,7 +121,7 @@ func (p *Parser) SQLCreate(table Table) (string, error) {
 		if i != len(table.Cols)-1 || len(primaries) != 0 || len(uniques) != 0 || len(foreigns) != 0 {
 			lastQuite = ","
 		}
-		fmt.Fprintf(&buf, "    %s %s %s%s\n", col.Name, dbTyp, constraints, lastQuite)
+		fmt.Fprintf(&buf, "    %s %s %s%s\n", p.EscapeName(col.Name), dbTyp, constraints, lastQuite)
 	}
 	if len(primaries) > 0 {
 		lastQuite = ""
@@ -140,7 +144,7 @@ func (p *Parser) SQLCreate(table Table) (string, error) {
 		if i != len(foreigns)-1 {
 			lastQuite = ","
 		}
-		fmt.Fprintf(&buf, "    FOREIGN KEY(%s) REFERENCES %s(%s)%s\n", col.Name, col.ForeignTable, col.ForeignCol, lastQuite)
+		fmt.Fprintf(&buf, "    FOREIGN KEY(%s) REFERENCES %s(%s)%s\n", p.EscapeName(col.Name), col.ForeignTable, col.ForeignCol, lastQuite)
 	}
 	fmt.Fprintf(&buf, ");\n")
 	return buf.String(), nil
