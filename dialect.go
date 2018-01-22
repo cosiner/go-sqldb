@@ -58,12 +58,12 @@ func (p Postgres) Type(typ, precision, val string) (dbtyp, defval string, err er
 		return typ, p.defaultVal("0", val, false), nil
 	case "string":
 		if precision == "" {
-			precision = "1024"
+			precision = "64"
 		}
 		return fmt.Sprintf("VARCHAR(%s)", precision), p.defaultVal("", val, true), nil
 	case "char":
 		if precision == "" {
-			precision = "256"
+			precision = "64"
 		}
 		return fmt.Sprintf("CHAR(%s)", precision), p.defaultVal("", val, true), nil
 	case "text":
