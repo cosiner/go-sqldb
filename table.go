@@ -268,7 +268,17 @@ func (p *Parser) shouldIgnore(f *reflect.StructField) bool {
 	return unicode.IsLower([]rune(f.Name)[0])
 }
 
-func (p *Parser) structFields(fields []reflect.StructField, t reflect.Type) []reflect.StructField {
+func (p *Parser) concatIndexes(parent, child []int) []int {
+	if len(parent) == 0 {
+		return child
+	}
+	indexes := make([]int, 0, len(parent)+len(child))
+	indexes = append(indexes, parent...)
+	indexes = append(indexes, child...)
+	return indexes
+}
+
+func (p *Parser) structFields(fields []reflect.StructField, parentFieldIndexes []int, t reflect.Type) []reflect.StructField {
 	n := t.NumField()
 
 	var anonymousStructs []reflect.StructField
@@ -279,7 +289,6 @@ func (p *Parser) structFields(fields []reflect.StructField, t reflect.Type) []re
 		}
 		if f.Anonymous && f.Type.Kind() == reflect.Struct {
 			anonymousStructs = append(anonymousStructs, f)
-			p.structFields(fields, f.Type)
 		} else {
 			var override bool
 			for i := range fields {
@@ -289,12 +298,13 @@ func (p *Parser) structFields(fields []reflect.StructField, t reflect.Type) []re
 				}
 			}
 			if !override {
+				f.Index = p.concatIndexes(parentFieldIndexes, f.Index)
 				fields = append(fields, f)
 			}
 		}
 	}
 	for _, f := range anonymousStructs {
-		fields = p.structFields(fields, f.Type)
+		fields = p.structFields(fields, p.concatIndexes(parentFieldIndexes, f.Index), f.Type)
 	}
 	return fields
 }
@@ -315,7 +325,7 @@ func (p *Parser) StructTable(v interface{}) (Table, error) {
 		Name: p.TablenamePrefix + p.NameMapper(reft.Name()),
 		Type: reft,
 	}
-	fields := p.structFields(nil, reft)
+	fields := p.structFields(nil, nil, reft)
 	for _, f := range fields {
 		col, err := p.parseColumn(&t, f)
 		if err != nil {
