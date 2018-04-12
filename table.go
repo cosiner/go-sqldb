@@ -24,6 +24,8 @@ type Column struct {
 	UniqueName   string
 	ForeignTable string
 	ForeignCol   string
+
+	Field reflect.StructField
 }
 
 type Table struct {
@@ -150,12 +152,13 @@ func (p *Parser) SQLCreate(table Table) (string, error) {
 	return buf.String(), nil
 }
 
-func (p *Parser) parseColumn(t *Table, f *reflect.StructField) (Column, error) {
+func (p *Parser) parseColumn(t *Table, f reflect.StructField) (Column, error) {
 	col := Column{
 		Name:    p.NameMapper(f.Name),
 		Type:    f.Type.Kind().String(),
 		Default: p.Default,
 		Notnull: !p.Notnull,
+		Field:   f,
 	}
 
 	var conds []string
@@ -311,8 +314,8 @@ func (p *Parser) StructTable(v interface{}) (Table, error) {
 		Name: p.TablenamePrefix + p.NameMapper(reft.Name()),
 	}
 	fields := p.structFields(nil, reft)
-	for i := range fields {
-		col, err := p.parseColumn(&t, &fields[i])
+	for _, f := range fields {
+		col, err := p.parseColumn(&t, f)
 		if err != nil {
 			return t, err
 		}
