@@ -260,7 +260,7 @@ func (p *Parser) shouldIgnore(f *reflect.StructField) bool {
 		return true
 	}
 	if f.Type.Kind() == reflect.Struct {
-		return false
+		return !f.Anonymous
 	}
 	if !p.isPrimary(f.Type.Kind()) {
 		return true
