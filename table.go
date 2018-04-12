@@ -230,6 +230,71 @@ func (p *Parser) parseColumn(t *Table, f *reflect.StructField) (Column, error) {
 	return col, nil
 }
 
+func (p *Parser) isPrimary(t reflect.Kind) bool {
+	switch t {
+	case reflect.Bool,
+		reflect.Int,
+		reflect.Int8,
+		reflect.Int16,
+		reflect.Int32,
+		reflect.Int64,
+		reflect.Uint,
+		reflect.Uint8,
+		reflect.Uint16,
+		reflect.Uint32,
+		reflect.Uint64,
+		reflect.Float32,
+		reflect.Float64,
+		reflect.String:
+		return true
+	}
+	return false
+}
+
+func (p *Parser) shouldIgnore(f *reflect.StructField) bool {
+	if f.Tag.Get(p.FieldTag) == "-" {
+		return true
+	}
+	if f.Type.Kind() == reflect.Struct {
+		return false
+	}
+	if !p.isPrimary(f.Type.Kind()) {
+		return true
+	}
+	return unicode.IsLower([]rune(f.Name)[0])
+}
+
+func (p *Parser) structFields(fields []reflect.StructField, t reflect.Type) []reflect.StructField {
+	n := t.NumField()
+
+	var anonymousStructs []reflect.StructField
+	for i := 0; i < n; i++ {
+		f := t.Field(i)
+		if p.shouldIgnore(&f) {
+			continue
+		}
+		if f.Anonymous && f.Type.Kind() == reflect.Struct {
+			anonymousStructs = append(anonymousStructs, f)
+			p.structFields(fields, f.Type)
+		} else {
+			var override bool
+			for i := range fields {
+				if fields[i].Name == f.Name {
+					override = true
+					break
+				}
+			}
+			if !override {
+				fields = append(fields, f)
+			}
+		}
+	}
+	for _, f := range anonymousStructs {
+		fields = p.structFields(fields, f.Type)
+	}
+	return fields
+}
+
 func (p *Parser) StructTable(v interface{}) (Table, error) {
 	p.initDefault()
 
@@ -245,10 +310,9 @@ func (p *Parser) StructTable(v interface{}) (Table, error) {
 	t := Table{
 		Name: p.TablenamePrefix + p.NameMapper(reft.Name()),
 	}
-	n := reft.NumField()
-	for i := 0; i < n; i++ {
-		f := reft.Field(i)
-		col, err := p.parseColumn(&t, &f)
+	fields := p.structFields(nil, reft)
+	for i := range fields {
+		col, err := p.parseColumn(&t, &fields[i])
 		if err != nil {
 			return t, err
 		}

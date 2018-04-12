@@ -36,3 +36,43 @@ func TestSnakeCase(t *testing.T) {
 		}
 	}
 }
+
+func TestParse(t *testing.T) {
+	type ExportedStr string
+	type unexportedStr string
+	type ExportedEmbed struct {
+		V1  int
+		Val uint32 // override
+	}
+	type unexportedEmbed struct {
+		V2 string
+	}
+	type Stru struct {
+		Val bool
+		ExportedStr
+		unexportedStr
+		ExportedEmbed
+		unexportedEmbed
+	}
+
+	cfg := Parser{
+		Default:    true,
+		Notnull:    true,
+		NameMapper: SnakeCase,
+	}
+	table, err := cfg.StructTable(Stru{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectCols := []string{
+		"val", "exported_str", "v1", "v2",
+	}
+	if len(expectCols) != len(table.Cols) {
+		t.Fatal("colum count unmatched")
+	}
+	for i, c := range expectCols {
+		if c != table.Cols[i].Name {
+			t.Fatalf("colum name unmatched: %s, %s\n", c, table.Cols[i].Name)
+		}
+	}
+}
