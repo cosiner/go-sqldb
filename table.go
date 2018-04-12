@@ -31,6 +31,7 @@ type Column struct {
 type Table struct {
 	Name string
 	Cols []Column
+	Type reflect.Type
 }
 
 type Parser struct {
@@ -312,6 +313,7 @@ func (p *Parser) StructTable(v interface{}) (Table, error) {
 
 	t := Table{
 		Name: p.TablenamePrefix + p.NameMapper(reft.Name()),
+		Type: reft,
 	}
 	fields := p.structFields(nil, reft)
 	for _, f := range fields {
