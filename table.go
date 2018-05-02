@@ -156,10 +156,13 @@ func (p *Parser) SQLCreate(table Table) (string, error) {
 func (p *Parser) parseColumn(t *Table, f reflect.StructField) (Column, error) {
 	col := Column{
 		Name:    p.NameMapper(f.Name),
-		Type:    f.Type.Kind().String(),
+		Type:    f.Type.String(),
 		Default: p.Default,
 		Notnull: !p.Notnull,
 		Field:   f,
+	}
+	if p.isBlob(f.Type) {
+		col.Type = "blob"
 	}
 
 	var conds []string
@@ -234,8 +237,8 @@ func (p *Parser) parseColumn(t *Table, f reflect.StructField) (Column, error) {
 	return col, nil
 }
 
-func (p *Parser) isPrimary(t reflect.Kind) bool {
-	switch t {
+func (p *Parser) isPrimary(t reflect.Type) bool {
+	switch t.Kind() {
 	case reflect.Bool,
 		reflect.Int,
 		reflect.Int8,
@@ -255,6 +258,10 @@ func (p *Parser) isPrimary(t reflect.Kind) bool {
 	return false
 }
 
+func (p *Parser) isBlob(t reflect.Type) bool {
+	return t.Kind() == reflect.Slice && t.Elem().Kind() == reflect.Uint8
+}
+
 func (p *Parser) shouldIgnore(f *reflect.StructField) bool {
 	if f.Tag.Get(p.FieldTag) == "-" {
 		return true
@@ -262,7 +269,7 @@ func (p *Parser) shouldIgnore(f *reflect.StructField) bool {
 	if f.Type.Kind() == reflect.Struct {
 		return !f.Anonymous
 	}
-	if !p.isPrimary(f.Type.Kind()) {
+	if !p.isPrimary(f.Type) && !p.isBlob(f.Type) {
 		return true
 	}
 	return unicode.IsLower([]rune(f.Name)[0])

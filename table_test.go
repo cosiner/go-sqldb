@@ -48,7 +48,8 @@ func TestParse(t *testing.T) {
 		V2 string
 	}
 	type Stru struct {
-		Val bool
+		Val   bool
+		Bytes []byte
 		ExportedStr
 		unexportedStr
 		ExportedEmbed
@@ -65,7 +66,7 @@ func TestParse(t *testing.T) {
 		t.Fatal(err)
 	}
 	expectCols := []string{
-		"val", "exported_str", "v1", "v2",
+		"val", "bytes", "exported_str", "v1", "v2",
 	}
 	if len(expectCols) != len(table.Cols) {
 		t.Fatal("colum count unmatched")

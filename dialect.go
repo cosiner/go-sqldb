@@ -67,7 +67,9 @@ func (p Postgres) Type(typ, precision, val string) (dbtyp, defval string, err er
 		}
 		return fmt.Sprintf("CHAR(%s)", precision), p.defaultVal("", val, true), nil
 	case "text":
-		return "text", p.defaultVal("", val, true), nil
+		return "TEXT", p.defaultVal("", val, true), nil
+	case "blob":
+		return "BYTEA", p.defaultVal("E'\\000'", val, false), nil
 	default:
 		return "", "", fmt.Errorf("postgres: unsupported type: %s", typ)
 	}
@@ -141,6 +143,8 @@ func (s SQLite3) Type(typ, precision, val string) (dbtyp, defval string, err err
 		"text",
 		"char":
 		return "TEXT", s.defaultVal("", val, true), nil
+	case "blob":
+		return "BLOB", s.defaultVal("x''", val, false), nil
 	default:
 		return "", "", fmt.Errorf("sqlite3: unsupported type: %s", typ)
 	}
