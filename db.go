@@ -102,10 +102,16 @@ type Tx interface {
 
 func TxDone(tx Tx, err *error) error {
 	var e error
-	if err != nil && *err != nil {
-		e = tx.Rollback()
+	if err != nil {
+		e = *err
+	}
+	if e != nil {
+		tx.Rollback()
 	} else {
 		e = tx.Commit()
+		if err != nil {
+			*err = e
+		}
 	}
 	return e
 }
