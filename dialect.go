@@ -69,7 +69,7 @@ func (p Postgres) Type(typ, precision, val string) (dbtyp, defval string, err er
 	case "text":
 		return "TEXT", p.defaultVal("", val, true), nil
 	case "blob":
-		return "BYTEA", p.defaultVal("E'\\000'", val, false), nil
+		return "BYTEA", p.defaultVal(`E'\\000'`, val, false), nil
 	default:
 		return "", "", fmt.Errorf("postgres: unsupported type: %s", typ)
 	}
