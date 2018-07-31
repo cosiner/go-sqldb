@@ -25,10 +25,10 @@ func TestSQLCreate(t *testing.T) {
 
 func TestSnakeCase(t *testing.T) {
 	cases := map[string]string{
-		"AbcdEEf":   "abcd_eef",
-		"abcdEEf":   "abcd_eef",
-		"abcdEEfF":  "abcd_eef_f",
-		"abcd_EEfF": "abcd__eef_f",
+		"AbcdEEf":   "abcd_e_ef",
+		"abcdEEf":   "abcd_e_ef",
+		"abcdEEfF":  "abcd_e_ef_f",
+		"abcd_EEfF": "abcd__e_ef_f",
 	}
 	for s, expect := range cases {
 		if got := SnakeCase(s); got != expect {

@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"strings"
 	"unicode"
-	"unicode/utf8"
 )
 
 type Column struct {
@@ -346,39 +345,20 @@ func (p *Parser) StructTable(v interface{}) (Table, error) {
 }
 
 func SnakeCase(s string) string {
-	var (
-		hasUpper  bool
-		size      = utf8.RuneCountInString(s)
-		prevUpper bool
-	)
-	for i, r := range s {
-		if unicode.IsUpper(r) {
-			hasUpper = true
-			if i != 0 && !prevUpper {
-				size++
+	runes := []rune(s)
+
+	var out []rune
+	l := len(runes)
+	for i := 0; i < l; i++ {
+		if i > 0 &&
+			unicode.IsUpper(runes[i]) { // curr upper
+			if (i+1 < len(runes) && !unicode.IsUpper(runes[i+1])) || // next lower
+				!unicode.IsUpper(runes[i-1]) { // prev lower
+				out = append(out, '_')
 			}
-			prevUpper = true
-		} else {
-			prevUpper = false
 		}
+		out = append(out, unicode.ToLower(runes[i]))
 	}
-	if !hasUpper {
-		return s
-	}
-	var (
-		buf = make([]rune, 0, size)
-	)
-	prevUpper = false
-	for i, r := range s {
-		isUpper := unicode.IsUpper(r)
-		if isUpper && i != 0 && !prevUpper {
-			buf = append(buf, '_')
-		}
-		if prevUpper = isUpper; isUpper {
-			buf = append(buf, unicode.ToLower(r))
-		} else {
-			buf = append(buf, r)
-		}
-	}
-	return string(buf)
+
+	return string(out)
 }
