@@ -36,6 +36,7 @@ type Table struct {
 type Parser struct {
 	DBDialect       DBDialect
 	FieldTag        string
+	ColumnNameTag   string
 	Default         bool
 	Notnull         bool
 	TablenamePrefix string
@@ -163,7 +164,12 @@ func (p *Parser) parseColumn(t *Table, f reflect.StructField) (Column, error) {
 	if p.isBlob(f.Type) {
 		col.Type = "blob"
 	}
-
+	if p.ColumnNameTag != "" {
+		tag := f.Tag.Get(p.ColumnNameTag)
+		if tag != "" {
+			col.Name = tag
+		}
+	}
 	var conds []string
 	tag := strings.TrimSpace(f.Tag.Get(p.FieldTag))
 	if tag != "" {
