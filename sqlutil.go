@@ -149,6 +149,12 @@ func NewSQLUtil(parser *TableParser, dialect DBDialect) *SQLUtil {
 		sqlCaches: make(map[SQLCacheID]string),
 	}
 }
+func (s *SQLUtil) TableParser() *TableParser {
+	return s.parser
+}
+func (s *SQLUtil) DBDialect() DBDialect {
+	return s.dialect
+}
 
 func (s *SQLUtil) TableColumns(v interface{}, excepts ...string) ColumnNames {
 	t, err := s.parser.StructTable(v)
