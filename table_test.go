@@ -6,17 +6,17 @@ import (
 )
 
 func TestSQLCreate(t *testing.T) {
-	cfg := Parser{
+	parser := NewTableParser(TableParserOptions{
 		Default:         true,
 		Notnull:         true,
 		TablenamePrefix: "sqldb_",
-		NameMapper:      SnakeCase,
-	}
-	table, err := cfg.StructTable(Column{})
+	})
+	sqlUtil := NewSQLUtil(parser, Postgres{})
+	table, err := parser.StructTable(Column{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := cfg.SQLCreate(table)
+	s, err := sqlUtil.CreateTableSQL(table)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,12 +56,11 @@ func TestParse(t *testing.T) {
 		unexportedEmbed
 	}
 
-	cfg := Parser{
-		Default:    true,
-		Notnull:    true,
-		NameMapper: SnakeCase,
-	}
-	table, err := cfg.StructTable(Stru{})
+	parser := NewTableParser(TableParserOptions{
+		Default: true,
+		Notnull: true,
+	})
+	table, err := parser.StructTable(Stru{})
 	if err != nil {
 		t.Fatal(err)
 	}

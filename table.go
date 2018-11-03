@@ -1,11 +1,10 @@
 package sqldb
 
 import (
-	"bytes"
-	"database/sql"
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"unicode"
 )
 
@@ -33,8 +32,7 @@ type Table struct {
 	Type reflect.Type
 }
 
-type Parser struct {
-	DBDialect       DBDialect
+type TableParserOptions struct {
 	FieldTag        string
 	ColumnNameTag   string
 	Default         bool
@@ -43,135 +41,69 @@ type Parser struct {
 	NameMapper      NameMapper
 }
 
-func (p *Parser) initDefault() {
-	if p.DBDialect == nil {
-		p.DBDialect = Postgres{}
-	}
-	if p.FieldTag == "" {
-		p.FieldTag = "sqldb"
-	}
-	if p.NameMapper == nil {
-		p.NameMapper = SnakeCase
+func (o *TableParserOptions) merge(opts ...TableParserOptions) {
+	for _, opt := range opts {
+		if opt.FieldTag != "" {
+			o.FieldTag = opt.FieldTag
+		}
+		if opt.ColumnNameTag != "" {
+			o.ColumnNameTag = opt.ColumnNameTag
+		}
+		if opt.Default {
+			o.Default = opt.Default
+		}
+		if opt.Notnull {
+			o.Notnull = opt.Notnull
+		}
+		if opt.TablenamePrefix != "" {
+			o.TablenamePrefix = opt.TablenamePrefix
+		}
+		if opt.NameMapper != nil {
+			o.NameMapper = opt.NameMapper
+		}
 	}
 }
 
-func (p *Parser) CreateTables(db *sql.DB, models ...interface{}) error {
-	for _, mod := range models {
-		table, err := p.StructTable(mod)
-		if err != nil {
-			return err
-		}
-		s, err := p.SQLCreate(table)
-		if err != nil {
-			return fmt.Errorf("%s: %s", table.Name, err.Error())
-		}
-		_, err = db.Exec(s)
-		if err != nil {
-			return fmt.Errorf("%s: %s", table.Name, err.Error())
-		}
-	}
-	return nil
+type TableParser struct {
+	opts TableParserOptions
+
+	mu     sync.RWMutex
+	tables map[reflect.Type]Table
 }
 
-func (p *Parser) EscapeName(name string) string {
-	return `"` + name + `"`
+func NewTableParser(options ...TableParserOptions) *TableParser {
+	opts := TableParserOptions{
+		FieldTag:   "sqldb",
+		NameMapper: SnakeCase,
+	}
+	opts.merge(options...)
+
+	return &TableParser{
+		opts: opts,
+
+		tables: make(map[reflect.Type]Table),
+	}
 }
 
-func (p *Parser) SQLCreate(table Table) (string, error) {
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "CREATE TABLE IF NOT EXISTS %s (\n", p.EscapeName(table.Name))
-	var (
-		uniques   map[string][]string
-		primaries []string
-		foreigns  []int
-		lastQuite string
-	)
-	for i, col := range table.Cols {
-		dbTyp, defaultVal, err := p.DBDialect.Type(col.Type, col.Precision, col.DefaultVal)
-		if err != nil {
-			return "", err
-		}
-		if col.Primary {
-			primaries = append(primaries, p.EscapeName(col.Name))
-		}
-		if col.ForeignTable != "" {
-			foreigns = append(foreigns, i)
-		}
-		if col.DBType != "" {
-			dbTyp = col.DBType
-		}
-		var constraints string
-		if col.Unique {
-			if col.UniqueName == "" {
-				constraints += " UNIQUE"
-			} else {
-				if uniques == nil {
-					uniques = make(map[string][]string)
-				}
-				uniques[col.UniqueName] = append(uniques[col.UniqueName], p.EscapeName(col.Name))
-			}
-		}
-		if col.AutoIncr {
-			constraints += " AUTO INCREAMENT"
-		}
-		if !col.Notnull {
-			constraints += " NOT NULL"
-		}
-		if col.Default {
-			constraints += " DEFAULT " + defaultVal
-		}
-		lastQuite = ""
-		if i != len(table.Cols)-1 || len(primaries) != 0 || len(uniques) != 0 || len(foreigns) != 0 {
-			lastQuite = ","
-		}
-		fmt.Fprintf(&buf, "    %s %s %s%s\n", p.EscapeName(col.Name), dbTyp, constraints, lastQuite)
-	}
-	if len(primaries) > 0 {
-		lastQuite = ""
-		if len(uniques) != 0 || len(foreigns) != 0 {
-			lastQuite = ","
-		}
-		fmt.Fprintf(&buf, "    PRIMARY KEY (%s)%s\n", strings.Join(primaries, ","), lastQuite)
-	}
-	for name, keys := range uniques {
-		lastQuite = ""
-		if len(foreigns) != 0 || len(uniques) != 1 {
-			lastQuite = ","
-		}
-		fmt.Fprintf(&buf, "    CONSTRAINT %s UNIQUE (%s)%s\n", name, strings.Join(keys, ","), lastQuite)
-		delete(uniques, name)
-	}
-	for i, index := range foreigns {
-		col := table.Cols[index]
-		lastQuite = ""
-		if i != len(foreigns)-1 {
-			lastQuite = ","
-		}
-		fmt.Fprintf(&buf, "    FOREIGN KEY(%s) REFERENCES %s(%s)%s\n", p.EscapeName(col.Name), col.ForeignTable, col.ForeignCol, lastQuite)
-	}
-	fmt.Fprintf(&buf, ");\n")
-	return buf.String(), nil
-}
-
-func (p *Parser) parseColumn(t *Table, f reflect.StructField) (Column, error) {
+func (p *TableParser) parseColumn(t *Table, f reflect.StructField) (Column, error) {
 	col := Column{
-		Name:    p.NameMapper(f.Name),
+		Name:    p.opts.NameMapper(f.Name),
 		Type:    f.Type.String(),
-		Default: p.Default,
-		Notnull: !p.Notnull,
+		Default: p.opts.Default,
+		Notnull: !p.opts.Notnull,
 		Field:   f,
 	}
 	if p.isBlob(f.Type) {
 		col.Type = "blob"
 	}
-	if p.ColumnNameTag != "" {
-		tag := f.Tag.Get(p.ColumnNameTag)
+	if p.opts.ColumnNameTag != "" {
+		tag := f.Tag.Get(p.opts.ColumnNameTag)
 		if tag != "" {
 			col.Name = tag
 		}
 	}
 	var conds []string
-	tag := strings.TrimSpace(f.Tag.Get(p.FieldTag))
+	tag := strings.TrimSpace(f.Tag.Get(p.opts.FieldTag))
 	if tag != "" {
 		conds = strings.Split(tag, " ")
 	}
@@ -222,7 +154,7 @@ func (p *Parser) parseColumn(t *Table, f reflect.StructField) (Column, error) {
 			col.Notnull = condVal == "" || condVal == "true"
 		case "default":
 			col.Default = condVal != "-"
-			if p.Default {
+			if p.opts.Default {
 				col.DefaultVal = condVal
 			}
 		case "unique":
@@ -242,7 +174,7 @@ func (p *Parser) parseColumn(t *Table, f reflect.StructField) (Column, error) {
 	return col, nil
 }
 
-func (p *Parser) isPrimary(t reflect.Type) bool {
+func (p *TableParser) isPrimary(t reflect.Type) bool {
 	switch t.Kind() {
 	case reflect.Bool,
 		reflect.Int,
@@ -263,12 +195,12 @@ func (p *Parser) isPrimary(t reflect.Type) bool {
 	return false
 }
 
-func (p *Parser) isBlob(t reflect.Type) bool {
+func (p *TableParser) isBlob(t reflect.Type) bool {
 	return t.Kind() == reflect.Slice && t.Elem().Kind() == reflect.Uint8
 }
 
-func (p *Parser) shouldIgnore(f *reflect.StructField) bool {
-	if f.Tag.Get(p.FieldTag) == "-" {
+func (p *TableParser) shouldIgnore(f *reflect.StructField) bool {
+	if f.Tag.Get(p.opts.FieldTag) == "-" {
 		return true
 	}
 	if f.Type.Kind() == reflect.Struct {
@@ -280,7 +212,7 @@ func (p *Parser) shouldIgnore(f *reflect.StructField) bool {
 	return unicode.IsLower([]rune(f.Name)[0])
 }
 
-func (p *Parser) concatIndexes(parent, child []int) []int {
+func (p *TableParser) concatIndexes(parent, child []int) []int {
 	if len(parent) == 0 {
 		return child
 	}
@@ -290,7 +222,7 @@ func (p *Parser) concatIndexes(parent, child []int) []int {
 	return indexes
 }
 
-func (p *Parser) structFields(fields []reflect.StructField, parentFieldIndexes []int, t reflect.Type) []reflect.StructField {
+func (p *TableParser) structFields(fields []reflect.StructField, parentFieldIndexes []int, t reflect.Type) []reflect.StructField {
 	n := t.NumField()
 
 	var anonymousStructs []reflect.StructField
@@ -321,20 +253,22 @@ func (p *Parser) structFields(fields []reflect.StructField, parentFieldIndexes [
 	return fields
 }
 
-func (p *Parser) StructTable(v interface{}) (Table, error) {
-	p.initDefault()
-
+func (p *TableParser) indirectReflect(v interface{}) reflect.Value {
 	refv := reflect.ValueOf(v)
-	if refv.Kind() == reflect.Ptr {
+	for refv.Kind() == reflect.Ptr {
 		refv = refv.Elem()
 	}
+	return refv
+}
+
+func (p *TableParser) parseTable(refv reflect.Value) (Table, error) {
+	reft := refv.Type()
 	if refv.Kind() != reflect.Struct {
 		return Table{}, fmt.Errorf("invalid artument type, expect (pointer of) structure")
 	}
-	reft := refv.Type()
 
 	t := Table{
-		Name: p.TablenamePrefix + p.NameMapper(reft.Name()),
+		Name: p.opts.TablenamePrefix + p.opts.NameMapper(reft.Name()),
 		Type: reft,
 	}
 	fields := p.structFields(nil, nil, reft)
@@ -347,6 +281,30 @@ func (p *Parser) StructTable(v interface{}) (Table, error) {
 			t.Cols = append(t.Cols, col)
 		}
 	}
+	return t, nil
+}
+
+func (p *TableParser) StructTable(v interface{}) (Table, error) {
+	refv := p.indirectReflect(v)
+	reft := refv.Type()
+
+	p.mu.RLock()
+	t, has := p.tables[reft]
+	p.mu.RUnlock()
+	if has {
+		return t, nil
+	}
+
+	t, err := p.parseTable(refv)
+	if err != nil {
+		return t, err
+	}
+	p.mu.Lock()
+	if p.tables == nil {
+		p.tables = make(map[reflect.Type]Table)
+	}
+	p.tables[reft] = t
+	p.mu.Unlock()
 	return t, nil
 }
 
