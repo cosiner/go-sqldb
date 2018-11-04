@@ -25,6 +25,17 @@ func (columnNameJoinAsList) Append(buffer *bytes.Buffer, c string) {
 	buffer.WriteString(c)
 }
 
+type columnNameJoinAsNamedList struct{}
+
+var _ ColumnNameJoinRule = columnNameJoinAsNamedList{}
+
+func (columnNameJoinAsNamedList) Separator() string { return ", " }
+
+func (columnNameJoinAsNamedList) Append(buffer *bytes.Buffer, c string) {
+	buffer.WriteString(":")
+	buffer.WriteString(c)
+}
+
 type columnNameJoinAsUpdate struct{}
 
 var _ ColumnNameJoinRule = columnNameJoinAsUpdate{}
@@ -84,6 +95,10 @@ func (c ColumnNames) Join(rule ColumnNameJoinRule) string {
 
 func (c ColumnNames) List() string {
 	return c.Join(columnNameJoinAsList{})
+}
+
+func (c ColumnNames) NamedList() string {
+	return c.Join(columnNameJoinAsNamedList{})
 }
 
 func (c ColumnNames) Update() string {
