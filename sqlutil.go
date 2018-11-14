@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
-	"sync"
 )
 
 type ColumnNames []string
@@ -146,22 +145,15 @@ func (c ColumnNames) InplaceRemove(cols ...string) ColumnNames {
 	return c
 }
 
-type SQLCacheID uint32
-
 type SQLUtil struct {
 	dialect DBDialect
 	parser  *TableParser
-
-	mu        sync.RWMutex
-	currID    SQLCacheID
-	sqlCaches map[SQLCacheID]string
 }
 
 func NewSQLUtil(parser *TableParser, dialect DBDialect) *SQLUtil {
 	return &SQLUtil{
-		parser:    parser,
-		dialect:   dialect,
-		sqlCaches: make(map[SQLCacheID]string),
+		parser:  parser,
+		dialect: dialect,
 	}
 }
 func (s *SQLUtil) TableParser() *TableParser {
@@ -183,29 +175,6 @@ func (s *SQLUtil) TableColumns(v interface{}, excepts ...string) ColumnNames {
 		}
 	}
 	return cols
-}
-
-func (s *SQLUtil) CachedSQL(idptr *SQLCacheID, fn func(*SQLUtil) string) string {
-	var sql string
-	id := *idptr
-	if id == 0 {
-		sql = fn(s)
-		s.mu.Lock()
-		id = *idptr
-		if id == 0 {
-			s.currID++
-			id = s.currID
-
-			s.sqlCaches[id] = sql
-			*idptr = id
-		}
-		s.mu.Unlock()
-	} else {
-		s.mu.RLock()
-		sql = s.sqlCaches[id]
-		s.mu.RUnlock()
-	}
-	return sql
 }
 
 func (s *SQLUtil) CreateTables(db *sql.DB, models ...interface{}) error {
