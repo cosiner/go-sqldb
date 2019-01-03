@@ -58,26 +58,32 @@ func (columnNameJoinAsNamedUpdate) Append(buffer *bytes.Buffer, c string) {
 	buffer.WriteString(c)
 }
 
-type columnNameJoinAsCond struct{ Cond string }
+type columnNameJoinAsCond struct {
+	Cond  string
+	Check string
+}
 
 var _ ColumnNameJoinRule = columnNameJoinAsCond{}
 
-func (c columnNameJoinAsCond) Separator() string { return " " + c.Cond + " " }
+func (cd columnNameJoinAsCond) Separator() string { return " " + cd.Cond + " " }
 
-func (columnNameJoinAsCond) Append(buffer *bytes.Buffer, c string) {
+func (cd columnNameJoinAsCond) Append(buffer *bytes.Buffer, c string) {
 	buffer.WriteString(c)
-	buffer.WriteString(" = ?")
+	buffer.WriteString(" " + cd.Check + " ?")
 }
 
-type columnNameJoinAsNamedCond struct{ Cond string }
+type columnNameJoinAsNamedCond struct {
+	Cond  string
+	Check string
+}
 
 var _ ColumnNameJoinRule = columnNameJoinAsNamedCond{}
 
-func (c columnNameJoinAsNamedCond) Separator() string { return " " + c.Cond + " " }
+func (cd columnNameJoinAsNamedCond) Separator() string { return " " + cd.Cond + " " }
 
-func (columnNameJoinAsNamedCond) Append(buffer *bytes.Buffer, c string) {
+func (cd columnNameJoinAsNamedCond) Append(buffer *bytes.Buffer, c string) {
 	buffer.WriteString(c)
-	buffer.WriteString(" = :")
+	buffer.WriteString(" " + cd.Check + " :")
 	buffer.WriteString(c)
 }
 
@@ -108,12 +114,12 @@ func (c ColumnNames) NamedUpdate() string {
 	return c.Join(columnNameJoinAsNamedUpdate{})
 }
 
-func (c ColumnNames) Cond(cond string) string {
-	return c.Join(columnNameJoinAsCond{})
+func (c ColumnNames) Cond(cond, check string) string {
+	return c.Join(columnNameJoinAsCond{Cond: cond, Check: check})
 }
 
-func (c ColumnNames) NamedCond(cond string) string {
-	return c.Join(columnNameJoinAsNamedCond{})
+func (c ColumnNames) NamedCond(cond, check string) string {
+	return c.Join(columnNameJoinAsNamedCond{Cond: cond, Check: check})
 }
 
 func (c ColumnNames) Contains(col string) bool {
