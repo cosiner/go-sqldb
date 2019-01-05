@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"sync"
 )
 
 type ColumnNames []string
@@ -87,15 +88,32 @@ func (cd columnNameJoinAsNamedCond) Append(buffer *bytes.Buffer, c string) {
 	buffer.WriteString(c)
 }
 
+type columnNameJoinAsPlaceholders struct{}
+
+func (columnNameJoinAsPlaceholders) Separator() string { return ", " }
+
+func (columnNameJoinAsPlaceholders) Append(buffer *bytes.Buffer, c string) {
+	buffer.WriteString("?")
+}
+
+var bufferPools = sync.Pool{
+	New: func() interface{} {
+		return bytes.NewBuffer(nil)
+	},
+}
+
 func (c ColumnNames) Join(rule ColumnNameJoinRule) string {
-	var b bytes.Buffer
+	b := bufferPools.Get().(*bytes.Buffer)
 	for _, c := range c {
 		if b.Len() > 0 {
 			b.WriteString(rule.Separator())
 		}
-		rule.Append(&b, c)
+		rule.Append(b, c)
 	}
-	return b.String()
+	s := b.String()
+	b.Reset()
+	bufferPools.Put(b)
+	return s
 }
 
 func (c ColumnNames) List() string {
@@ -120,6 +138,10 @@ func (c ColumnNames) Cond(cond, check string) string {
 
 func (c ColumnNames) NamedCond(cond, check string) string {
 	return c.Join(columnNameJoinAsNamedCond{Cond: cond, Check: check})
+}
+
+func (c ColumnNames) Placeholders() string {
+	return c.Join(columnNameJoinAsPlaceholders{})
 }
 
 func (c ColumnNames) Contains(col string) bool {
