@@ -102,7 +102,7 @@ func (Postgres) DSN(config DBConfig) string {
 type SQLite3 struct{}
 
 func (SQLite3) DSN(config DBConfig) string {
-	if config.Host == "" || config.DBName == "" {
+	if config.DBName == "" {
 		return ":memory:"
 	}
 	return fmt.Sprintf("file:%s?%s", config.DBName, config.JoinOptions("=", "&"))
