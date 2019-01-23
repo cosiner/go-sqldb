@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 )
@@ -324,12 +325,72 @@ func (e *SQLHolder) SQL(sb *SQLBuilder, fn func(sb *SQLBuilder) string) string {
 
 type SQLBuilder struct {
 	SQLUtil *SQLUtil
+
+	mu            sync.RWMutex
+	indexSQLCache map[uintptr][]string
+	sqlCache      map[uintptr]string
 }
 
 func NewSQLBuilder(su *SQLUtil) *SQLBuilder {
 	return &SQLBuilder{
 		SQLUtil: su,
 	}
+}
+
+func (b *SQLBuilder) WithCache(f func(b *SQLBuilder) string) string {
+	ptr := reflect.ValueOf(f).Pointer()
+	b.mu.RLock()
+	s := b.sqlCache[ptr]
+	b.mu.RUnlock()
+	if s == "" {
+		s = f(b)
+		b.mu.Lock()
+		if b.sqlCache == nil {
+			b.sqlCache = make(map[uintptr]string)
+		}
+		b.sqlCache[ptr] = s
+		b.mu.Unlock()
+	}
+	return s
+}
+
+func (b *SQLBuilder) WithCacheAndIndex(f func(b *SQLBuilder, index int) string, index, cap int) string {
+	ptr := reflect.ValueOf(f).Pointer()
+	if index < 0 {
+		index = 0
+	}
+	if cap <= 0 {
+		cap = 10
+	}
+
+	b.mu.RLock()
+	ss := b.indexSQLCache[ptr]
+	b.mu.RUnlock()
+
+	var s string
+	l := len(ss)
+	if l != cap {
+		ss = make([]string, cap)
+	} else if index < cap {
+		s = ss[index]
+	}
+	if s == "" {
+		s = f(b, index)
+
+		if index < cap {
+			ss[index] = s
+
+			if l != cap {
+				b.mu.Lock()
+				if b.indexSQLCache == nil {
+					b.indexSQLCache = make(map[uintptr][]string)
+				}
+				b.indexSQLCache[ptr] = ss
+				b.mu.Unlock()
+			}
+		}
+	}
+	return s
 }
 
 func (b *SQLBuilder) whereClause(s string) string {
@@ -341,8 +402,13 @@ func (b *SQLBuilder) whereClause(s string) string {
 
 func (b *SQLBuilder) Query(model interface{}, columns, where []string) string {
 	table := b.SQLUtil.TableName(model)
-	if len(columns) == 0 {
+	switch len(columns) {
+	case 0:
 		columns = b.SQLUtil.TableColumns(model, where...)
+	case 1:
+		if columns[0] == "*" {
+			columns = b.SQLUtil.TableColumns(model)
+		}
 	}
 	return fmt.Sprintf(
 		"SELECT %s FROM %s%s",

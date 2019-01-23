@@ -2,6 +2,7 @@ package sqldb
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -27,11 +28,14 @@ func TestSQLHolder(t *testing.T) {
 	}
 }
 
-func TestSQLBuilder(t *testing.T) {
+func newSQLBuilder() *SQLBuilder {
 	p := NewTableParser()
 	su := NewSQLUtil(p, Postgres{})
-	sb := NewSQLBuilder(su)
+	return NewSQLBuilder(su)
+}
 
+func TestSQLBuilder(t *testing.T) {
+	sb := newSQLBuilder()
 	type Model struct {
 		Id       string `sql:"pk"`
 		Name     string
@@ -51,6 +55,7 @@ func TestSQLBuilder(t *testing.T) {
 		{SQL: sb.Query(m, []string{"id"}, []string{"name"}), Expect: "SELECT id FROM model WHERE name = :name"},
 		{SQL: sb.Query(m, []string{"id"}, []string{"name", "email"}), Expect: "SELECT id FROM model WHERE name = :name AND email = :email"},
 		{SQL: sb.Query(m, []string{}, []string{"name", "email"}), Expect: "SELECT id, password FROM model WHERE name = :name AND email = :email"},
+		{SQL: sb.Query(m, []string{"*"}, []string{"name", "email"}), Expect: "SELECT id, name, email, password FROM model WHERE name = :name AND email = :email"},
 
 		{SQL: sb.Delete(m, nil), Expect: "DELETE FROM model"},
 		{SQL: sb.Delete(m, []string{"id"}), Expect: "DELETE FROM model WHERE id = :id"},
@@ -81,7 +86,60 @@ func TestSQLBuilder(t *testing.T) {
 	for i, c := range cases {
 		got := clean(c.SQL)
 		if c.Expect != got {
-			t.Fatalf("%d: expect %s, nut got %s", i, c.Expect, got)
+			t.Fatalf("%d: expect %s, but got %s", i, c.Expect, got)
+		}
+	}
+}
+
+func TestSQLBuilderCache(t *testing.T) {
+	sb := newSQLBuilder()
+
+	{
+		var (
+			runTimes uint32
+			sql      = "test"
+		)
+		f := func(*SQLBuilder) string {
+			runTimes++
+			return sql
+		}
+		for i := 0; i < 10; i++ {
+			if sb.WithCache(f) != sql || runTimes != 1 {
+				t.Fatal("unexpected result")
+			}
+		}
+	}
+	{
+		var (
+			runTimes int
+			sql      = "test"
+			cap      = 5
+		)
+		f := func(b *SQLBuilder, idx int) string {
+			runTimes++
+			return sql + strconv.Itoa(idx)
+		}
+		for i := 0; i < 10; i++ {
+			for j := 0; j < 10; j++ {
+				if sb.WithCacheAndIndex(f, j, cap) != sql+strconv.Itoa(j) {
+					t.Fatal("unexpected result")
+				}
+				if i == 0 { // always run
+					if runTimes != j+1 {
+						t.Fatal("unexpected result", i, j, runTimes)
+					}
+				} else {
+					if j < 5 { // cached
+						if runTimes != 10+5*(i-1) {
+							t.Fatal("unexpected result", i, j, runTimes)
+						}
+					} else { // always run
+						if runTimes != 10+5*(i-1)+(j+1)-5 {
+							t.Fatal("unexpected result", i, j, runTimes)
+						}
+					}
+				}
+			}
 		}
 	}
 }
