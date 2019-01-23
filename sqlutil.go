@@ -312,17 +312,6 @@ func (s *SQLUtil) CreateTableSQL(table Table) (string, error) {
 	return buf.String(), nil
 }
 
-type SQLHolder string
-
-func (e *SQLHolder) SQL(sb *SQLBuilder, fn func(sb *SQLBuilder) string) string {
-	str := string(*e)
-	if str == "" {
-		str = fn(sb)
-		*e = SQLHolder(str)
-	}
-	return str
-}
-
 type SQLBuilder struct {
 	SQLUtil *SQLUtil
 

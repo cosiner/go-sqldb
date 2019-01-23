@@ -7,27 +7,6 @@ import (
 	"testing"
 )
 
-func TestSQLHolder(t *testing.T) {
-	var s SQLHolder
-	var runTimes uint32
-	getSql := func() string {
-		return s.SQL(nil, func(b *SQLBuilder) string {
-			runTimes++
-			return "s"
-		})
-	}
-
-	if runTimes != 0 {
-		t.Fatal("unexpected result")
-	}
-	if getSql() != "s" || runTimes != 1 {
-		t.Fatal("unexpected result")
-	}
-	if getSql() != "s" || runTimes != 1 {
-		t.Fatal("unexpected result")
-	}
-}
-
 func newSQLBuilder() *SQLBuilder {
 	p := NewTableParser()
 	su := NewSQLUtil(p, Postgres{})
