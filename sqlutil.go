@@ -389,30 +389,29 @@ func (b *SQLBuilder) whereClause(s string) string {
 	return " WHERE " + s
 }
 
-func (b *SQLBuilder) Query(model interface{}, columns, where []string) string {
+func (b *SQLBuilder) WhereColumns(cols ...string) string {
+	return ColumnNames(cols).NamedCond("AND", "=")
+}
+
+func (b *SQLBuilder) Query(model interface{}, columns []string, where string) string {
 	table := b.SQLUtil.TableName(model)
-	switch len(columns) {
-	case 0:
-		columns = b.SQLUtil.TableColumns(model, where...)
-	case 1:
-		if columns[0] == "*" {
-			columns = b.SQLUtil.TableColumns(model)
-		}
+	if len(columns) == 0 {
+		columns = b.SQLUtil.TableColumns(model)
 	}
 	return fmt.Sprintf(
 		"SELECT %s FROM %s%s",
 		ColumnNames(columns).List(),
 		table,
-		b.whereClause(ColumnNames(where).NamedCond("AND", "=")),
+		b.whereClause(where),
 	)
 }
 
-func (b *SQLBuilder) IsExist(model interface{}, resultName string, where []string) string {
+func (b *SQLBuilder) IsExist(model interface{}, resultName string, where string) string {
 	table := b.SQLUtil.TableName(model)
 	return fmt.Sprintf(
 		"SELECT EXISTS(SELECT 1 FROM %s%s) AS %s",
 		table,
-		b.whereClause(ColumnNames(where).NamedCond("AND", "=")),
+		b.whereClause(where),
 		resultName,
 	)
 }
@@ -420,7 +419,7 @@ func (b *SQLBuilder) IsExist(model interface{}, resultName string, where []strin
 type CheckIsExistGroup struct {
 	Model      interface{}
 	ResultName string
-	Where      []string
+	Where      string
 }
 
 func (b *SQLBuilder) MultiIsExist(groups ...CheckIsExistGroup) string {
@@ -437,26 +436,20 @@ func (b *SQLBuilder) MultiIsExist(groups ...CheckIsExistGroup) string {
 		_, _ = fmt.Fprintf(&buffer,
 			"EXISTS(SELECT 1 FROM %s%s) AS %s",
 			table,
-			b.whereClause(ColumnNames(g.Where).NamedCond("AND", "=")),
+			b.whereClause(g.Where),
 			g.ResultName,
 		)
 	}
 	return buffer.String()
 }
 
-func (b *SQLBuilder) Delete(model interface{}, wheres []string) string {
+func (b *SQLBuilder) Delete(model interface{}, where string) string {
 	table := b.SQLUtil.TableName(model)
 
 	return fmt.Sprintf("DELETE FROM %s%s",
 		table,
-		b.whereClause(ColumnNames(wheres).NamedCond("AND", "=")),
+		b.whereClause(where),
 	)
-}
-
-func (b *SQLBuilder) DeleteByConds(model interface{}, wheres string) string {
-	table := b.SQLUtil.TableName(model)
-
-	return fmt.Sprintf("DELETE FROM %s%s", table, b.whereClause(wheres))
 }
 
 func (b *SQLBuilder) Insert(model interface{}) string {
@@ -465,7 +458,7 @@ func (b *SQLBuilder) Insert(model interface{}) string {
 	return fmt.Sprintf("INSERT INTO %s(%s) VALUES(%s)", table, columns.List(), columns.NamedList())
 }
 
-func (b *SQLBuilder) InsertUnique(model interface{}, uniqueCols []string) string {
+func (b *SQLBuilder) InsertUnique(model interface{}, checkExist string) string {
 	table := b.SQLUtil.TableName(model)
 	columns := ColumnNames(b.SQLUtil.TableColumns(model))
 	return fmt.Sprintf("INSERT INTO %s(%s) SELECT %s WHERE NOT EXISTS(SELECT 1 FROM %s WHERE %s)",
@@ -473,18 +466,18 @@ func (b *SQLBuilder) InsertUnique(model interface{}, uniqueCols []string) string
 		columns.List(),
 		columns.NamedList(),
 		table,
-		ColumnNames(uniqueCols).NamedCond("AND", "="),
+		checkExist,
 	)
 }
 
-func (b *SQLBuilder) Update(model interface{}, columns, wheres []string) string {
+func (b *SQLBuilder) Update(model interface{}, columns []string, where string) string {
 	table := b.SQLUtil.TableName(model)
 	if len(columns) == 0 {
-		columns = b.SQLUtil.TableColumns(model, wheres...)
+		columns = b.SQLUtil.TableColumns(model)
 	}
 	return fmt.Sprintf("UPDATE %s SET %s%s",
 		table,
 		ColumnNames(columns).NamedUpdate(),
-		b.whereClause(ColumnNames(wheres).NamedCond("AND", "=")),
+		b.whereClause(where),
 	)
 }
